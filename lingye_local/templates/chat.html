@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Lingye Chat</title>
+<style>
+body{background:#111;color:#eee;font-family:-apple-system,Segoe UI;}
+#chatbox{max-width:800px;margin:20px auto;}
+.msg{margin:10px 0;padding:10px;border-radius:12px;}
+.user{background:#1f2937;align-self:flex-end;}
+.assistant{background:#2d3748;}
+#input{width:100%;padding:12px;background:#1a202c;color:#fff;border:none;border-radius:8px;}
+button{margin-top:8px;padding:10px 14px;border:none;border-radius:8px;background:#4f46e5;color:white;}
+</style>
+</head>
+
+<body>
+<div id="chatbox"></div>
+
+<div style="max-width:800px;margin:20px auto;">
+  <textarea id="input" rows="3" placeholder="跟我说话吧…"></textarea>
+  <button onclick="send()">发送</button>
+</div>
+
+<script>
+async function send(){
+  const txt = document.getElementById("input").value;
+  if(!txt) return;
+
+  addBubble("user", txt);
+  document.getElementById("input").value="";
+
+const res = await fetch("/chat", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+        "x-access-token": "你的专属强密码"
+    },
+    body: JSON.stringify({
+        session_id: "default",
+        message: txt
+    })
+});
+
+const data = await res.json();
+addBubble("assistant", data.reply);
+}
+
+function addBubble(role,text){
+  const box = document.getElementById("chatbox");
+  const div = document.createElement("div");
+  div.className = "msg " + role;
+  div.innerText = text;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+</script>
+</body>
+</html>
