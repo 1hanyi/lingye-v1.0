@@ -20,7 +20,7 @@ ACCESS_CODE = os.getenv("ACCESS_CODE")
 import httpx
 
 # 这里的 7890 是 Clash 的默认端口，如果你在 Clash 设置里改过数字，请对齐
-PROXIES = "http://127.0.0.1:7890" 
+#PROXIES = "http://127.0.0.1:7890" 
 
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
@@ -238,3 +238,4 @@ if __name__ == "__main__":
     # 确保后端在 8000 端口迎接前端，监听 127.0.0.1
 
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
