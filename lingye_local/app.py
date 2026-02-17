@@ -14,8 +14,8 @@ from openai import OpenAI
 # 1. 基础配置
 # =========================
 # 请务必在这里填入你的真实密钥，或确保环境变量已生效
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "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")
-ACCESS_CODE = os.getenv("ACCESS_CODE", "54wusehun") 
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+ACCESS_CODE = os.getenv("ACCESS_CODE") 
 
 import httpx
 
@@ -236,4 +236,5 @@ async def chat(request: ChatRequest, x_access_token: str = Header(None)):
 if __name__ == "__main__":
     import uvicorn
     # 确保后端在 8000 端口迎接前端，监听 127.0.0.1
+
     uvicorn.run(app, host="127.0.0.1", port=8000)
