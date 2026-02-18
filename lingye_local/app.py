@@ -13,20 +13,12 @@ from openai import OpenAI
 # =========================
 # 1. 基础配置
 # =========================
-# 请务必在这里填入你的真实密钥，或确保环境变量已生效
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-ACCESS_CODE = os.getenv("ACCESS_CODE") 
-
-import httpx
-
-# 这里的 7890 是 Clash 的默认端口，如果你在 Clash 设置里改过数字，请对齐
-#PROXIES = "http://127.0.0.1:7890" 
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+ACCESS_CODE = os.getenv("ACCESS_CODE", "")
 
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_API_KEY,
-    # 这一行就是“地道入口”，让后端学会翻墙去找你的新加坡节点
-    http_client=httpx.Client(proxy=PROXIES)
 )
 
 MODEL_NAME = "openai/gpt-4o"
@@ -49,18 +41,37 @@ app.add_middleware(
 # =========================
 # 3. 向量库逻辑 (这次稳了！)
 # =========================
+# app.py 约 42 行左右开始
 def get_vector_store():
-    # 核心修改：给 Embeddings 加上 OpenRouter 的地址和我们的“地道”
     embeddings = OpenAIEmbeddings(
-        openai_api_key=OPENROUTER_API_KEY, #
-        openai_api_base="https://openrouter.ai/api/v1", # 告诉它别去 OpenAI 官网
-        # 别忘了这个，让它也顺着新加坡/德国的线路走
-        http_client=httpx.Client(proxy="http://127.0.0.1:7890") 
+        openai_api_key=OPENROUTER_API_KEY,
+        openai_api_base="https://openrouter.ai/api/v1"
     )
-    
-    if os.path.exists(VECTOR_DIR):
-        return FAISS.load_local(VECTOR_DIR, embeddings, allow_dangerous_deserialization=True)
-    return None
+
+    # 如果云端没有 vector_db 文件夹，或者文件夹里没索引
+    if not os.path.exists(VECTOR_DIR) or not os.listdir(VECTOR_DIR):
+        print("DEBUG: 云端未发现记忆索引，正在尝试从原始文本重建...")
+        try:
+            # 假设你把那 3000 字的记忆存成了一个 memory.txt 放在根目录
+            from langchain_community.document_loaders import TextLoader
+            from langchain.text_splitter import CharacterTextSplitter
+
+            loader = TextLoader("memory.txt", encoding='utf-8') # 你需要传个 memory.txt 上去
+            documents = loader.load()
+            text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+            docs = text_splitter.split_documents(documents)
+
+            # 现场背书并生成索引
+            store = FAISS.from_documents(docs, embeddings)
+            store.save_local(VECTOR_DIR)
+            print("DEBUG: 记忆重建完毕！")
+            return store
+        except Exception as e:
+            print(f"DEBUG: 自动重建记忆失败: {str(e)}")
+            return None
+
+    # 如果有索引，就正常加载
+    return FAISS.load_local(VECTOR_DIR, embeddings, allow_dangerous_deserialization=True)
 
 def query_memory(query: str, k=5):
     print(f"DEBUG: 正在尝试检索向量库，关键词: {query}")
@@ -72,7 +83,7 @@ def query_memory(query: str, k=5):
             if not docs:
                 print("DEBUG: 向量库里没找到任何匹配内容。")
                 return ""
-            
+
             # 拼装检索到的内容
             content = "\n".join([doc.page_content for doc in docs])
             print(f"DEBUG: 成功检索到 {len(docs)} 条记忆碎片！")
@@ -109,13 +120,13 @@ async def get_history(session_id: str = "default_user"):
 from typing import Optional
 
 class ChatRequest(BaseModel):
-    session_id: Optional[str] = "test_session" 
+    session_id: Optional[str] = "test_session"
     message: Optional[str] = ""
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS messages
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   session_id TEXT, role TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     conn.commit()
     conn.close()
@@ -129,7 +140,7 @@ def get_db_connection():
     return conn
 def save_message(session_id, role, content):
     # 这一行是“大喇叭”，只要保存，CMD 就会喊出来
-    print(f"DEBUG: 正在保存消息 - 角色: {role}, Session: {session_id}") 
+    print(f"DEBUG: 正在保存消息 - 角色: {role}, Session: {session_id}")
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -204,19 +215,19 @@ async def chat(request: ChatRequest, x_access_token: str = Header(None)):
     try:
         # 保存用户说的话
         save_message(session_id, "user", user_message)
-        
+
         # --- 重点修正：确保括号层层嵌套正确 ---
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,
             temperature=1.0
-        ) 
-        
+        )
+
         reply = response.choices[0].message.content
-        
+
         # 保存凌夜的回应
         save_message(session_id, "assistant", reply)
-        
+
         # 6. 核心对齐：同时返回 reply 和 choices 格式
         return {
             "reply": reply,
@@ -235,7 +246,7 @@ async def chat(request: ChatRequest, x_access_token: str = Header(None)):
 # =========================
 if __name__ == "__main__":
     import uvicorn
-    # 确保后端在 8000 端口迎接前端，监听 127.0.0.1
+    # 确保后端在 8000 端口迎接前端，监听 127.0.0.x
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
-    uvicorn.run(app, host="127.0.0.1", port=8000)
 
