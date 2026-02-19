@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/chat",
+      "destination": "http://167.172.84.137:8000/chat"
+    },
+    {
+      "source": "/api/history",
+      "destination": "http://167.172.84.137:8000/history"
+    }
+  ]
+}
